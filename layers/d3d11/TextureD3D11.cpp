@@ -631,10 +631,13 @@ D3D11TextureData* D3D11TextureData::Create(IntSize aSize, SurfaceFormat aFormat,
   RefPtr<gfx::FileHandleWrapper> handle =
       new gfx::FileHandleWrapper(UniqueFileHandle(sharedHandle));
 
-  D3D11TextureData* data =
-      new D3D11TextureData(texture11, 0, std::move(handle), aSize, aFormat, aFlags);
+  return new D3D11TextureData(texture11, 0, std::move(handle), aSize, aFormat,
+                              aFlags);
 
-  /* texture11->GetDevice(getter_AddRefs(device));
+  /* D3D11TextureData* data =
+      new D3D11TextureData(texture11, 0, handle, aSize, aFormat, aFlags);
+
+  texture11->GetDevice(getter_AddRefs(device));
   if (XRE_IsGPUProcess() &&
       device == gfx::DeviceManagerDx::Get()->GetCompositorDevice()) {
     const auto textureId = GpuProcessD3D11TextureMap::GetNextTextureId();
@@ -646,9 +649,9 @@ D3D11TextureData* D3D11TextureData::Create(IntSize aSize, SurfaceFormat aFormat,
     } else {
       gfxCriticalNoteOnce << "GpuProcessD3D11TextureMap does not exist";
     }
-  } */
+  }
 
-  return data;
+  return data; */
 }
 
 void D3D11TextureData::Deallocate(LayersIPCChannel* aAllocator) {
