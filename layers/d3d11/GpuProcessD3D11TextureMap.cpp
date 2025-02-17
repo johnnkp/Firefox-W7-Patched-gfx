@@ -47,17 +47,17 @@ GpuProcessD3D11TextureMap::~GpuProcessD3D11TextureMap() {}
 void GpuProcessD3D11TextureMap::Register(
     GpuProcessTextureId aTextureId, ID3D11Texture2D* aTexture,
     uint32_t aArrayIndex, const gfx::IntSize& aSize,
-    RefPtr<IMFSampleUsageInfo> aUsageInfo,
-    RefPtr<gfx::FileHandleWrapper> aSharedHandle) {
+    RefPtr<IMFSampleUsageInfo> aUsageInfo /* ,
+    RefPtr<gfx::FileHandleWrapper> aSharedHandle */) {
   MonitorAutoLock lock(mMonitor);
-  Register(lock, aTextureId, aTexture, aArrayIndex, aSize, aUsageInfo, nullptr
-           /* aSharedHandle */);
+  Register(lock, aTextureId, aTexture, aArrayIndex, aSize, aUsageInfo/* , nullptr
+           aSharedHandle */);
 }
 void GpuProcessD3D11TextureMap::Register(
     const MonitorAutoLock& aProofOfLock, GpuProcessTextureId aTextureId,
     ID3D11Texture2D* aTexture, uint32_t aArrayIndex, const gfx::IntSize& aSize,
-    RefPtr<IMFSampleUsageInfo> aUsageInfo,
-    RefPtr<gfx::FileHandleWrapper> aSharedHandle) {
+    RefPtr<IMFSampleUsageInfo> aUsageInfo /* ,
+    RefPtr<gfx::FileHandleWrapper> aSharedHandle */) {
   MOZ_RELEASE_ASSERT(aTexture);
 
   auto it = mD3D11TexturesById.find(aTextureId);
@@ -67,7 +67,7 @@ void GpuProcessD3D11TextureMap::Register(
   }
   mD3D11TexturesById.emplace(
       aTextureId,
-      TextureHolder(aTexture, aArrayIndex, aSize, aUsageInfo, aSharedHandle));
+      TextureHolder(aTexture, aArrayIndex, aSize, aUsageInfo /* , aSharedHandle */));
 }
 
 void GpuProcessD3D11TextureMap::Unregister(GpuProcessTextureId aTextureId) {
@@ -92,7 +92,7 @@ RefPtr<ID3D11Texture2D> GpuProcessD3D11TextureMap::GetTexture(
   return it->second.mTexture;
 }
 
-Maybe<HANDLE> GpuProcessD3D11TextureMap::GetSharedHandle(
+Maybe<HANDLE> GpuProcessD3D11TextureMap::GetSharedHandleOfCopiedTexture(
     GpuProcessTextureId aTextureId) {
   TextureHolder holder;
   {
@@ -103,9 +103,9 @@ Maybe<HANDLE> GpuProcessD3D11TextureMap::GetSharedHandle(
       return Nothing();
     }
 
-    if (it->second.mSharedHandle) {
+    /* if (it->second.mSharedHandle) {
       return Some(it->second.mSharedHandle->GetHandle());
-    }
+    } */
 
     if (it->second.mCopiedTextureSharedHandle) {
       return Some(it->second.mCopiedTextureSharedHandle->GetHandle());
@@ -294,7 +294,7 @@ void GpuProcessD3D11TextureMap::HandleInTextureUpdateThread() {
     if (texture) {
       auto size = textureHolder->mWrappedTextureHost->GetSize();
       Register(lock, textureHolder->mTextureId, texture, /* aArrayIndex */ 0,
-               size, /* aUsageInfo */ nullptr, /* aSharedHandle */ nullptr);
+               size, /* aUsageInfo */ nullptr /* ,aSharedHandle nullptr */);
     }
     mWaitingTextures.erase(textureHolder->mTextureId);
     MOZ_ASSERT(mWaitingTextures.size() == mWaitingTextureQueue.size());
@@ -393,13 +393,13 @@ RefPtr<ID3D11Texture2D> GpuProcessD3D11TextureMap::UpdateTextureData(
 
 GpuProcessD3D11TextureMap::TextureHolder::TextureHolder(
     ID3D11Texture2D* aTexture, uint32_t aArrayIndex, const gfx::IntSize& aSize,
-    RefPtr<IMFSampleUsageInfo> aUsageInfo,
-    RefPtr<gfx::FileHandleWrapper> aSharedHandle)
+    RefPtr<IMFSampleUsageInfo> aUsageInfo /* ,
+    RefPtr<gfx::FileHandleWrapper> aSharedHandle */)
     : mTexture(aTexture),
       mArrayIndex(aArrayIndex),
       mSize(aSize),
-      mIMFSampleUsageInfo(aUsageInfo),
-      mSharedHandle(aSharedHandle) {}
+      mIMFSampleUsageInfo(aUsageInfo) /* ,
+      mSharedHandle(aSharedHandle) */ {}
 
 GpuProcessD3D11TextureMap::UpdatingTextureHolder::UpdatingTextureHolder(
     const GpuProcessTextureId aTextureId, TextureHost* aTextureHost,
