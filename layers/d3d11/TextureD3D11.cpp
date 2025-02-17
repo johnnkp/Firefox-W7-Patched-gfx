@@ -632,7 +632,7 @@ D3D11TextureData* D3D11TextureData::Create(IntSize aSize, SurfaceFormat aFormat,
       new gfx::FileHandleWrapper(UniqueFileHandle(sharedHandle));
 
   D3D11TextureData* data =
-      new D3D11TextureData(texture11, 0, handle, aSize, aFormat, aFlags);
+      new D3D11TextureData(texture11, 0, std::move(handle), aSize, aFormat, aFlags);
 
   texture11->GetDevice(getter_AddRefs(device));
   if (XRE_IsGPUProcess() &&
