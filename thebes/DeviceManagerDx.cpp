@@ -67,7 +67,7 @@ DeviceManagerDx::DeviceManagerDx()
     : mDeviceLock("gfxWindowsPlatform.mDeviceLock"),
       mCompositorDeviceSupportsVideo(false) {
   // Set up the D3D11 feature levels we can ask for.
-  mFeatureLevels.AppendElement(D3D_FEATURE_LEVEL_11_1);
+  // mFeatureLevels.AppendElement(D3D_FEATURE_LEVEL_11_1);
   mFeatureLevels.AppendElement(D3D_FEATURE_LEVEL_11_0);
   mFeatureLevels.AppendElement(D3D_FEATURE_LEVEL_10_1);
   mFeatureLevels.AppendElement(D3D_FEATURE_LEVEL_10_0);
@@ -946,7 +946,9 @@ void DeviceManagerDx::CreateWARPCompositorDevice() {
     return;
   }
 
-  bool textureSharingWorks = D3D11Checks::DoesTextureSharingWork(device);
+  // Only test for texture sharing on Windows 8 since it puts the device into
+  // an unusable state if used on Windows 7
+  bool textureSharingWorks = false; // D3D11Checks::DoesTextureSharingWork(device);
 
   RefPtr<ID3D10Multithread> multi;
   hr = device->QueryInterface(__uuidof(ID3D10Multithread),

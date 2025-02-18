@@ -284,9 +284,10 @@ static inline bool D2DSupportsPrimitiveBlendMode(CompositionOp aOp) {
   switch (aOp) {
     case CompositionOp::OP_OVER:
     // case CompositionOp::OP_SOURCE:
+      return true;
     // case CompositionOp::OP_DARKEN:
     case CompositionOp::OP_ADD:
-      return true;
+      return false; // true;
     default:
       return false;
   }
