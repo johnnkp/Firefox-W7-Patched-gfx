@@ -1394,6 +1394,29 @@ bool DeviceManagerDx::CanInitializeKeyedMutexTextures() {
          gfxVars::AllowD3D11KeyedMutex();
 }
 
+bool DeviceManagerDx::HasCrashyInitData() {
+  MutexAutoLock lock(mDeviceLock);
+  if (!mDeviceStatus) {
+    return false;
+  }
+
+  bool IsWin10OrLater = false;
+  return (mDeviceStatus->adapter().VendorId == 0x8086 && !IsWin10OrLater /* () */);
+}
+
+bool DeviceManagerDx::CheckRemotePresentSupport() {
+  MOZ_ASSERT(XRE_IsParentProcess());
+
+  RefPtr<IDXGIAdapter1> adapter = GetDXGIAdapter();
+  if (!adapter) {
+    return false;
+  }
+  if (!D3D11Checks::DoesRemotePresentWork(adapter)) {
+    return false;
+  }
+  return true;
+}
+
 bool DeviceManagerDx::IsWARP() {
   MutexAutoLock lock(mDeviceLock);
   if (!mDeviceStatus) {

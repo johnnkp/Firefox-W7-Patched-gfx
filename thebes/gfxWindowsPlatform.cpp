@@ -192,7 +192,7 @@ class GPUAdapterReporter final : public nsIMemoryReporter {
           queryStatistics.QuerySegment.SegmentId = i;
 
           if (NT_SUCCESS(queryD3DKMTStatistics(&queryStatistics))) {
-            bool aperture = queryStatistics.QueryResult.SegmentInfo.Aperture;
+            bool aperture = queryStatistics.QueryResult.SegmentInfoWin7.Aperture;
             memset(&queryStatistics, 0, sizeof(D3DKMTQS));
             queryStatistics.Type = D3DKMTQS_PROCESS_SEGMENT;
             queryStatistics.AdapterLuid = adapterDesc.AdapterLuid;
@@ -200,7 +200,7 @@ class GPUAdapterReporter final : public nsIMemoryReporter {
             queryStatistics.QueryProcessSegment.SegmentId = i;
             if (NT_SUCCESS(queryD3DKMTStatistics(&queryStatistics))) {
               ULONGLONG bytesCommitted =
-                  queryStatistics.QueryResult.ProcessSegmentInfo.BytesCommitted;
+                  queryStatistics.QueryResult.ProcessSegmentInfo.Win7.BytesCommitted;
               if (aperture)
                 sharedBytesUsed += bytesCommitted;
               else
@@ -1440,6 +1440,27 @@ void gfxWindowsPlatform::InitializeD3D11Config() {
     d3d11.UserForceEnable("User force-enabled WARP");
   }
 
+  bool IsWin8OrLater = false;
+  if (!IsWin8OrLater /* () */ &&
+      !DeviceManagerDx::Get()->CheckRemotePresentSupport()) {
+    nsCOMPtr<nsIGfxInfo> gfxInfo;
+    gfxInfo = components::GfxInfo::Service();
+    nsAutoString adaptorId;
+    gfxInfo->GetAdapterDeviceID(adaptorId);
+    // Blocklist Intel HD Graphics 510/520/530 on Windows 7 without platform
+    // update due to the crashes in Bug 1351349.
+    if (adaptorId.EqualsLiteral("0x1912") ||
+        adaptorId.EqualsLiteral("0x1916") ||
+        adaptorId.EqualsLiteral("0x1902")) {
+#ifdef RELEASE_OR_BETA
+      d3d11.Disable(FeatureStatus::Blocklisted, "Blocklisted, see bug 1351349",
+                    "FEATURE_FAILURE_BUG_1351349"_ns);
+#else
+      Preferences::SetBool("gfx.compositor.clearstate", true);
+#endif
+    }
+  }
+
   nsCString message;
   nsCString failureId;
   if (StaticPrefs::layers_d3d11_enable_blacklist_AtStartup() &&
@@ -1668,6 +1689,8 @@ void gfxWindowsPlatform::InitGPUProcessSupport() {
     return;
   }
 
+  bool IsWin7SP1OrLater = true, IsWin8OrLater = false;
+
   if (!gfxConfig::IsEnabled(Feature::D3D11_COMPOSITING)) {
     // Don't use the GPU process if not using D3D11, unless software
     // compositor is allowed
@@ -1677,6 +1700,24 @@ void gfxWindowsPlatform::InitGPUProcessSupport() {
     gpuProc.Disable(FeatureStatus::Unavailable,
                     "Not using GPU Process since D3D11 is unavailable",
                     "FEATURE_FAILURE_NO_D3D11"_ns);
+  } else if (!IsWin7SP1OrLater /* () */) {
+    // On Windows 7 Pre-SP1, DXGI 1.2 is not available and remote presentation
+    // for D3D11 will not work. Rather than take a regression we revert back
+    // to in-process rendering.
+    gpuProc.Disable(FeatureStatus::Unavailable,
+                    "Windows 7 Pre-SP1 cannot use the GPU process",
+                    "FEATURE_FAILURE_OLD_WINDOWS"_ns);
+  } else if (!IsWin8OrLater /* () */) {
+    // Windows 7 SP1 can have DXGI 1.2 only via the Platform Update, so we
+    // explicitly check for that here.
+    if (!DeviceManagerDx::Get()->CheckRemotePresentSupport()) {
+      gpuProc.Disable(FeatureStatus::Unavailable,
+                      "GPU Process requires the Windows 7 Platform Update",
+                      "FEATURE_FAILURE_PLATFORM_UPDATE"_ns);
+    } else {
+      // Clear anything cached by the above call since we don't need it.
+      DeviceManagerDx::Get()->ResetDevices();
+    }
   }
   // If we're still enabled at this point, the user set the force-enabled pref.
 }
@@ -1686,11 +1727,14 @@ class D3DVsyncSource final : public VsyncSource {
   D3DVsyncSource()
       : mPrevVsync(TimeStamp::Now()),
         mVsyncEnabled(false),
-        mWaitVBlankMonitor(NULL) {
+        mWaitVBlankMonitor(NULL),
+        mIsWindows8OrLater(false) {
     mVsyncThread = new base::Thread("WindowsVsyncThread");
     MOZ_RELEASE_ASSERT(mVsyncThread->Start(),
                        "GFX: Could not start Windows vsync thread");
     SetVsyncRate();
+	
+	mIsWindows8OrLater = false;
   }
 
   void SetVsyncRate() {
@@ -1802,9 +1846,9 @@ class D3DVsyncSource final : public VsyncSource {
     // vsync is in the past. Sometimes that upcoming vsync is before
     // the previously seen vsync.
     // In these error cases, normalize to Now();
-    if (vsync >= now) {
+    /* if (vsync >= now) {
       vsync = vsync - mVsyncRate;
-    }
+    } */
 
     // On Windows 7 and 8, DwmFlush wakes up AFTER qpcVBlankTime
     // from DWMGetCompositionTimingInfo. We can return the adjusted vsync.
@@ -1842,7 +1886,8 @@ class D3DVsyncSource final : public VsyncSource {
       NotifyVsync(vsync, vsync + mVsyncRate);
 
       HRESULT hr = E_FAIL;
-      if (!StaticPrefs::gfx_vsync_force_disable_waitforvblank()) {
+      if (mIsWindows8OrLater &&
+          !StaticPrefs::gfx_vsync_force_disable_waitforvblank()) {
         UpdateVBlankOutput();
         if (mWaitVBlankOutput) {
           const TimeStamp vblank_begin_wait = TimeStamp::Now();
@@ -1939,6 +1984,8 @@ class D3DVsyncSource final : public VsyncSource {
 
   HMONITOR mWaitVBlankMonitor;
   RefPtr<IDXGIOutput> mWaitVBlankOutput;
+
+  bool mIsWindows8OrLater;
 };  // D3DVsyncSource
 
 already_AddRefed<mozilla::gfx::VsyncSource>

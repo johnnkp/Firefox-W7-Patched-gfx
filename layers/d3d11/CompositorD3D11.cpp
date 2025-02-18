@@ -921,6 +921,9 @@ void CompositorD3D11::EndFrame() {
 
   if (oldSize == mSize) {
     Present();
+    // Blocklist Intel HD Graphics 510/520/530 on Windows 7 without platform
+    // update due to the crashes in Bug 1351349: gfx.compositor.clearstate = false
+      mContext->ClearState();
   }
 
   // Block until the previous frame's work has been completed.
